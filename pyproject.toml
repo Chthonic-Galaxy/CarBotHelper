@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "bumblebeereminderbot"
+version = "0.1.0"
+description = ""
+authors = ["Rex6961 <aon777ar@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+aiogram = {url = "https://github.com/aiogram/aiogram/archive/refs/heads/dev-3.x.zip"}
+python-dotenv = "^1.0.1"
+
+
+[tool.poetry.group.scheduler.dependencies]
+apscheduler = "^3.10.4"
+
+
+[tool.poetry.group.database.dependencies]
+sqlalchemy = "^2.0.35"
+aiosqlite = "^0.20.0"
+
+
+[tool.poetry.group.test.dependencies]
+mypy = "^1.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
