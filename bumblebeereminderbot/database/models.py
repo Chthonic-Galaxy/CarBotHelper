@@ -37,7 +37,7 @@ class Car(Base):
     # Название автомобиля
     name: Mapped[str] = mapped_column(String(50), unique=True)
     # Год выпуска автомобиля
-    year: Mapped[str] = mapped_column(String(30), default="0")
+    year: Mapped[str] = mapped_column(String(30))
     
     # Внешний ключ, связывающий событие с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))

@@ -3,7 +3,7 @@
 """
 
 from aiogram import Router, types, F
-from aiogram.filters import Command, CommandStart, or_f
+from aiogram.filters import Command, CommandStart, or_f, StateFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.scene import Scene, on, ScenesManager
 from aiogram.fsm.context import FSMContext
@@ -27,6 +27,13 @@ BUTTONS = {
     "Main": "В меню",
     "Back": "Назад"
 }
+
+
+# Регистрация обработчиков команд /menu и /start
+@user_private.message(or_f(Command("menu"), CommandStart()))
+async def start_menu(message: types.Message, state: FSMContext, scenes: ScenesManager):
+    await state.clear()
+    await scenes.enter(Menu)
 
 class Menu(Scene, state="main_menu"):
     """
@@ -171,10 +178,9 @@ class Profile(Scene, state="profile"):
         Начало процесса удаления автомобиля.
         """
 
-        cars = await rq.get_cars(tg_id=callback.from_user.id)
-        buttons = await rq.get_cars(tg_id=callback.from_user.id)
+        cars = [i for i in await rq.get_cars(tg_id=callback.from_user.id)]
         text = '\n'.join(f'{i}: {car.name} {car.year}' for i, car in enumerate(cars, start=1))
-        btns = {f"{i}": f'remove_auto:{car.car_id}' for i, car in enumerate(buttons, start=1)}
+        btns = {f"{i}": f'remove_auto:{car.car_id}' for i, car in enumerate(cars, start=1)}
         await callback.message.edit_text(
             text=text,
             reply_markup=get_callback_btns(
@@ -427,5 +433,17 @@ async def incorrect_note_description(message: types.Message):
 
 #==========Notes==========
 
-# Регистрация обработчиков команд /menu и /start
-user_private.message.register(Menu.as_handler(), or_f(Command("menu"), CommandStart()))
+
+#========Purchases========
+class AddPurchases(StatesGroup):
+    """
+    Состояния для процесса добавления покупок.
+    """
+    title = State()
+    description = State()
+
+class Purchase(Scene, state='purchases'):
+    """
+    Сцена управления заметками пользователя.
+    """
+    @on.message.enter()
