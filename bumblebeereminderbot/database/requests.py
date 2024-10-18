@@ -30,18 +30,9 @@ async def set_car(name, year, tg_id):
     """
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
-        # Получаем список автомобилей пользователя с указанным tg_id
-        result = await session.scalars(select(Car).where(Car.tg_id == tg_id))
-        
-        # Проверяем, существует ли автомобиль с таким же именем
-        if not any(name == car.name for car in result):
-            # Если автомобиля нет, добавляем его
-            session.add(Car(name=name, year=year, tg_id=tg_id))
+        session.add(Car(name=name, year=year, tg_id=tg_id))
             # Фиксация изменений в базе данных
-            await session.commit()
-        else:
-            # Если автомобиль уже существует, выбрасываем ошибку
-            raise ValueError("Такой автомобиль уже существует.")
+        await session.commit()
 
 async def set_reminder(reminder_title, reminder_date, car_id, reminder_description=None):
     """
@@ -53,21 +44,15 @@ async def set_reminder(reminder_title, reminder_date, car_id, reminder_descripti
     """
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
-        # Поиск названия автомобиля по его car_id через связь между Reminder и Car
-        car = session.scalar(select(Reminder).where(Reminder.car_id == car_id))
-        # Поиск названия напоминания по его reminder_title
-        title = session.scalar(select(Reminder).where(Reminder.reminder_title == reminder_title))
-
-        # Если у автомобиля, напоминание не найдено, добавляем его в базу данных
-        if car and not title:
-            session.add(Reminder(
-                reminder_title=reminder_title,
-                reminder_description=reminder_description,
-                reminder_date=reminder_date, car_id=car_id
-                )
+        session.add(Reminder(
+            reminder_title=reminder_title,
+            reminder_description=reminder_description,
+            reminder_date=reminder_date,
+            car_id=car_id
             )
-            # Фиксация изменений в базе данных
-            session.commit()
+        )
+        # Фиксация изменений в базе данных
+        await session.commit()
 
 async def set_note(note_title, note_date, tg_id, note_description=None):
     """
@@ -79,27 +64,20 @@ async def set_note(note_title, note_date, tg_id, note_description=None):
     """
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
-        # Поиск пользователя по его tg_id через связь между Note и User
-        user = session.scalar(select(Note).where(Note.tg_id == tg_id))
-        # Поиск названия заметки по её note_title
-        title = session.scalar(select(Note).where(Note.note_title == note_title))
-
-        # Если у пользователя, заметка не найдена, добавляем её в базу данных
-        if user and not title:
-            session.add(Note(
-                note_title=note_title,
-                note_description=note_description,
-                note_date=note_date,
-                tg_id=tg_id
-            )
+        session.add(Note(
+            note_title=note_title,
+            note_description=note_description,
+            note_date=note_date,
+            tg_id=tg_id
         )
-            # Фиксация изменений в базе данных
-            session.commit()
+    )
+        # Фиксация изменений в базе данных
+        await session.commit()
 
-async def set_purchase(purchase_date, tg_id, purchase_title=None, purchase_photo=None):
+async def set_purchase(purchase_date, tg_id, purchase_title, purchase_photo=None):
     """
     Асинхронная функция для добавления покупки в базу данных
-    :param purchase_title: Название покупки, опционально
+    :param purchase_title: Название покупки
     :param purchase_photo: Фото покупки, опционально
     :param purchase_date: Дата и время покупки
     :param tg_id: Внешний ключ, между Purchase и User моделями
@@ -115,7 +93,7 @@ async def set_purchase(purchase_date, tg_id, purchase_title=None, purchase_photo
             )
         )
         # Фиксация асинхронной сессии с базой данных
-        session.commit()
+        await session.commit()
 
 async def set_analytics(
         analytics_title,
@@ -133,23 +111,16 @@ async def set_analytics(
     """
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
-        # Поиск пользователя по его tg_id через связь между Analytics и User
-        user = session.scalar(select(Analytics).where(Analytics.tg_id == tg_id))
-        # Поиск названия покупки по её analytics_title
-        title = session.scalar(select(Analytics).where(Analytics.analytics_title == analytics_title))
-
-        # Если у пользователя, покупка не найдена, добавляем её в базу данных
-        if user and not title:
-            session.add(Analytics(
-                analytics_title=analytics_title,
-                analytics_description=analytics_description,
-                analytics_date=analytics_date,
-                analytics_price=analytics_price,
-                tg_id=tg_id
-            )
+        session.add(Analytics(
+            analytics_title=analytics_title,
+            analytics_description=analytics_description,
+            analytics_date=analytics_date,
+            analytics_price=analytics_price,
+            tg_id=tg_id
         )
-            # Фиксация асинхронной сессии с базой данных
-            session.commit()
+    )
+        # Фиксация асинхронной сессии с базой данных
+        await session.commit()
 
 async def get_cars(tg_id):
     """
@@ -173,7 +144,7 @@ async def get_reminders(car_id):
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
         # Получение всех напоминаний по car_id
-        await session.scalars(select(Reminder).where(Reminder.car_id == car_id))
+        return await session.scalars(select(Reminder).where(Reminder.car_id == car_id))
 
 async def get_notes(tg_id):
     """
@@ -185,7 +156,7 @@ async def get_notes(tg_id):
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
         # Получение всех заметок по tg_id
-        await session.scalars(select(Note).where(Note.tg_id == tg_id))
+        return await session.scalars(select(Note).where(Note.tg_id == tg_id))
 
 async def get_purchases(tg_id):
     """
@@ -197,7 +168,7 @@ async def get_purchases(tg_id):
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
         # Получение всех заметок по tg_id
-        await session.scalars(select(Purchase).where(Purchase.tg_id == tg_id))
+        return await session.scalars(select(Purchase).where(Purchase.tg_id == tg_id))
 
 async def get_analytics(tg_id):
     """
@@ -209,7 +180,7 @@ async def get_analytics(tg_id):
     # Создание асинхронной сессии с базой данных
     async with async_session() as session:
         # Получение всех заметок по tg_id
-        await session.scalars(select(Analytics).where(Analytics.tg_id == tg_id))
+        return await session.scalars(select(Analytics).where(Analytics.tg_id == tg_id))
 
 async def remove_car(car_id):
     """
@@ -223,10 +194,12 @@ async def remove_car(car_id):
         car = await session.scalar(select(Car).where(Car.car_id == car_id))
     
         # Если автомобиль найден, удаляем его из базы данных
-        if car:
+        try:
             await session.delete(car)
             # Фиксация изменений в базе данных
             await session.commit()
+        except:
+            pass
 
 async def remove_reminder(reminder_id):
     """
@@ -240,10 +213,12 @@ async def remove_reminder(reminder_id):
         id = await session.scalar(select(Reminder).where(Reminder.reminder_id == reminder_id))
     
         # Если напоминание найдено, удаляем его из базы данных
-        if id:
+        try:
             await session.delete(id)
             # Фиксация изменений в базе данных
             await session.commit()
+        except:
+            pass
 
 async def remove_note(note_id):
     """
@@ -257,10 +232,12 @@ async def remove_note(note_id):
         id = await session.scalar(select(Note).where(Note.note_id == note_id))
     
         # Если заметка найдена, удаляем её из базы данных
-        if id:
+        try:
             await session.delete(id)
             # Фиксация изменений в базе данных
             await session.commit()
+        except:
+            pass
 
 async def remove_purchase(purchase_id):
     """
@@ -274,10 +251,12 @@ async def remove_purchase(purchase_id):
         id = await session.scalar(select(Purchase).where(Purchase.purchase_id == purchase_id))
     
         # Если покупка найдена, удаляем её из базы данных
-        if id:
+        try:
             await session.delete(id)
             # Фиксация изменений в базе данных
             await session.commit()
+        except:
+            pass
 
 async def remove_analytics(analytics_id):
     """
@@ -291,7 +270,9 @@ async def remove_analytics(analytics_id):
         id = await session.scalar(select(Analytics).where(Analytics.analytics_id == analytics_id))
     
         # Если покупка найдена, удаляем её из базы данных
-        if id:
+        try:
             await session.delete(id)
             # Фиксация изменений в базе данных
             await session.commit()
+        except:
+            pass
