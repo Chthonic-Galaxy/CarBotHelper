@@ -1,4 +1,5 @@
 from sqlalchemy import BigInteger, String, DateTime, ForeignKey, Float, Integer, Boolean
+from sqlalchemy.dialects.sqlite import DATETIME
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 
@@ -35,7 +36,7 @@ class Car(Base):
     # Первичный ключ таблицы
     car_id: Mapped[int] = mapped_column(primary_key=True)
     # Название автомобиля
-    name: Mapped[str] = mapped_column(String(50), unique=True)
+    name: Mapped[str] = mapped_column(String(50))
     # Год выпуска автомобиля
     year: Mapped[str] = mapped_column(String(30))
     
@@ -54,7 +55,7 @@ class Reminder(Base):
     # Первичный ключ таблицы
     reminder_id: Mapped[int] = mapped_column(primary_key=True)
     # Название напоминания
-    reminder_title: Mapped[str] = mapped_column(String(64), unique=True)
+    reminder_title: Mapped[str] = mapped_column(String(64))
     # Описание напоминания
     reminder_description: Mapped[str] = mapped_column(String(256), nullable=True, default='Напоминание')
     # Дата и время когда следует напомнить
@@ -77,14 +78,14 @@ class Note(Base):
     # Первичный ключ таблицы
     note_id: Mapped[int] = mapped_column(primary_key=True)
     # Название заметки
-    note_title: Mapped[str] = mapped_column(String(64), unique=True)
+    note_title: Mapped[str] = mapped_column(String(64))
     # Описание заметки
     note_description: Mapped[str] = mapped_column(String(256), nullable=True, default='Заметка')
     # Дата создания заметки
     note_date: Mapped[DateTime] = mapped_column(DateTime)
 
     # Внешний ключ, связывающий заметку с пользователем
-    tg_id = mapped_column(Integer, ForeignKey("users.tg_id"))
+    tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Note и User моделями
     tg = relationship("User", foreign_keys=[tg_id])
 
@@ -98,14 +99,14 @@ class Purchase(Base):
     # Первичный ключ таблицы
     purchase_id: Mapped[int] = mapped_column(primary_key=True)
     # Название покупки 
-    purchase_title: Mapped[str] = mapped_column(String(64), nullable=True, default="Покупка")
+    purchase_title: Mapped[str] = mapped_column(String(64))
     # Фото покупки
     purchase_photo: Mapped[str] = mapped_column(String, nullable=True)
     # Дата покупки
     purchase_date: Mapped[DateTime] = mapped_column(DateTime)
 
     # Внешний ключ, связывающий покупку с пользователем
-    tg_id = mapped_column(Integer, ForeignKey("users.tg_id"))
+    tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Purchase и User моделями
     tg = relationship("User", foreign_keys=[tg_id])
 
@@ -119,7 +120,7 @@ class Analytics(Base):
     # Первичный ключ таблицы
     analytics_id: Mapped[int] = mapped_column(primary_key=True)
     # Название покупки
-    analytics_title: Mapped[str] = mapped_column(String(64), unique=True)
+    analytics_title: Mapped[str] = mapped_column(String(64))
     # Описание покупки
     analytics_description: Mapped[str] = mapped_column(String(256), nullable=True, default="Аналитика")
     # Дата покупки

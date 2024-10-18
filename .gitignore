@@ -170,3 +170,5 @@ example.py
 text.txt
 tests/
 database.py
+.dbeaver
+.project
