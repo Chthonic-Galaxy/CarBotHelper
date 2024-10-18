@@ -65,7 +65,7 @@ class Menu(Scene, state="main_menu"):
             # Удаление предыдущего сообщения и отправка меню
             await event.delete()
             await event.answer(
-                text="Здравствуйте, вы в AvtoBot'e!",
+                text="Здравствуйте, вы в CarBotHelper!",
                 reply_markup=get_callback_btns(
                     btns={
                         BUTTONS["Profile"]: "profile",
