@@ -6,7 +6,7 @@ from aiogram.fsm.scene import SceneRegistry
 from aiogram.fsm.storage.memory import SimpleEventIsolation
 
 from config import TOKEN
-from telegram.handlers.user_private import user_private, Menu, Profile, Notes, Purchase
+from telegram.handlers.user_private import user_private, Menu, Profile, Notes, Purchase, Analisis
 from telegram.common.bot_cmds_list import private
 
 from database.models import async_main
@@ -24,7 +24,7 @@ dp.include_router(user_private)
 
 # Регистрация сцен
 scene_registry = SceneRegistry(dp)
-scene_registry.add(Menu, Profile, Notes, Purchase)
+scene_registry.add(Menu, Profile, Notes, Purchase, Analisis)
 
 async def main() -> None:
     try:

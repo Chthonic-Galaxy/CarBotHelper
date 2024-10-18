@@ -9,6 +9,9 @@ class Remove(CallbackData, prefix="remove"):
 
 class View(CallbackData, prefix="view"):
     id: int
+    
+class Period(CallbackData, prefix="period"):
+    period: int | str
 
 def get_callback_btns(
     *,
