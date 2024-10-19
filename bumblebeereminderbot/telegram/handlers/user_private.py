@@ -736,7 +736,8 @@ async def add_title(message: types.Message, state: FSMContext):
     reply_markup=get_callback_btns(btns={"Продолжить": "break"}))
     else:
         await message.answer("Введите уникальное название.")
-    
+
+#TODO: Fix the get image logic to get the best image and separate with `skip`(break) logic  
 @user_private.message(AddPurchases.photo)
 @user_private.callback_query(F.data == 'break')
 async def add_photo(event: types.Message | types.CallbackQuery, state: FSMContext, scenes: ScenesManager):
