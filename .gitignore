@@ -172,3 +172,6 @@ tests/
 database.py
 .dbeaver
 .project
+presentation.pdf
+jobs.sqlite
+example.txt

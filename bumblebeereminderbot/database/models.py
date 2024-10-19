@@ -43,7 +43,7 @@ class Car(Base):
     # Внешний ключ, связывающий событие с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Car и User моделями
-    tg = relationship("User", foreign_keys=[tg_id])
+    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
 
 
 class Reminder(Base):
@@ -66,7 +66,7 @@ class Reminder(Base):
     # Внешний ключ, связывающий событие с автомобилем
     car_id = mapped_column(Integer, ForeignKey("cars.car_id"))
     # Определение отношения между Reminder и Car моделями
-    car = relationship("Car", foreign_keys=[car_id])
+    car = relationship("Car", foreign_keys=[car_id], cascade="all, delete")
 
 
 class Note(Base):
@@ -87,7 +87,7 @@ class Note(Base):
     # Внешний ключ, связывающий заметку с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Note и User моделями
-    tg = relationship("User", foreign_keys=[tg_id])
+    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
 
 
 class Purchase(Base):
@@ -108,7 +108,7 @@ class Purchase(Base):
     # Внешний ключ, связывающий покупку с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Purchase и User моделями
-    tg = relationship("User", foreign_keys=[tg_id])
+    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
 
 
 class Analytics(Base):
@@ -131,7 +131,7 @@ class Analytics(Base):
     # Внешний ключ, связывающий аналитику с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Analytics и User моделями
-    tg = relationship("User", foreign_keys=[tg_id])
+    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
 
 
 async def async_main():
