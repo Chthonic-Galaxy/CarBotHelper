@@ -22,10 +22,10 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.scene import Scene, on, ScenesManager
 from aiogram.fsm.context import FSMContext
 
-from telegram.kbd.inline import get_callback_btns, Remove, View, Period
-from telegram.middlewares.scheduler import send_message_scheduler
+from bumblebeereminderbot.telegram.kbd.inline import get_callback_btns, Remove, View, Period
+from bumblebeereminderbot.telegram.middlewares.scheduler import send_message_scheduler
 
-import database.requests as rq
+import bumblebeereminderbot.database.requests as rq
 
 # Создание роутера для обработки приватных сообщений
 user_private = Router()
@@ -77,7 +77,7 @@ class Menu(Scene, state="main_menu"):
                     btns={
                         BUTTONS["Profile"]: "profile",
                         BUTTONS["Reminders"]: "reminder",
-                        # BUTTONS["Notes"]: "notes",
+                        BUTTONS["Notes"]: "notes",
                         BUTTONS["Purchases"]: "purchase",
                         BUTTONS["Analytics"]: "analisis",
                     }
@@ -91,14 +91,14 @@ class Menu(Scene, state="main_menu"):
                     btns={
                         BUTTONS["Profile"]: "profile",
                         BUTTONS["Reminders"]: "reminder",
-                        # BUTTONS["Notes"]: "notes",
+                        BUTTONS["Notes"]: "notes",
                         BUTTONS["Purchases"]: "purchase",
                         BUTTONS["Analytics"]: "analisis",
                     }
                 )
             )
             await event.answer()
-
+        
     @on.callback_query(F.data == "profile")
     async def goto_profile(self, callback: types.CallbackQuery, state: FSMContext):
         """
@@ -121,7 +121,7 @@ class Menu(Scene, state="main_menu"):
         await self.wizard.goto(Purchase)
 
     @on.callback_query(F.data == "analisis")
-    async def goto_notes(self, callback: types.CallbackQuery, state: FSMContext):
+    async def goto_analisis(self, callback: types.CallbackQuery, state: FSMContext):
         """
         Переход в сцену аналитики.
         """
@@ -302,8 +302,8 @@ class Notes(Scene, state="notes"):
     Сцена управления заметками пользователя.
     """
 
-    @on.callback_query.enter()
     @on.message.enter()
+    @on.callback_query.enter()
     async def on_enter(self, event: types.Message | types.CallbackQuery, state: FSMContext):
         """
         Обработчик входа в сцену заметок.  Отображает список заметок пользователя.
@@ -313,10 +313,10 @@ class Notes(Scene, state="notes"):
             await event.message.delete()
         except:
             pass
-        data = await state.get_data()
-        notes = data.get("notes", []) # Используем get с дефолтным значением для предотвращения KeyError
 
-        message_text = f"У вас {'нету заметок.' if not notes else '\n'.join(f'{i+1}. {title[0]}' for i, title in enumerate(notes))}"
+        notes = [i for i in await rq.get_notes(tg_id=event.from_user.id)]
+
+        message_text = '\n'.join(f'{i}: {note.note_title} {note.note_date}' for i, note in enumerate(notes, start=1)) or "У вас нет заметок."
         buttons = {
             "Удалить": "remove_note",
             "Добавить": "add_note",
@@ -655,10 +655,23 @@ class Purchase(Scene, state='purchase'):
             await callback.message.delete()
         except:
             pass
-        await callback.message.answer(text="Введите товар который вы бы хотели найти.")
+        await callback.message.answer(
+            text="Введите товар который вы бы хотели найти.",
+            reply_markup=get_callback_btns(
+                btns={"⬅️ Назад": "back_purchase"}
+            )
+        )
         await callback.answer()
 
-@user_private.message(AddPurchases.search)
+@user_private.callback_query(AddPurchases.search, F.data == 'back_purchase')
+async def back_search(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
+    """
+    Обработчик для возврата в сцену покупок.
+    """
+    await callback.answer()
+    await scenes.enter(Purchase)
+
+@user_private.message(AddPurchases.search, F.text)
 async def search_purchase(message: types.Message, state: FSMContext, scenes: ScenesManager):
     """
     Поиск покупок по названию.  Отображает найденные покупки.
@@ -701,15 +714,7 @@ async def search_purchase(message: types.Message, state: FSMContext, scenes: Sce
         await scenes.enter(Purchase)
     else:
         await message.answer("Такого товара нет среди покупок.\nВведите снова или нажмите кнопку назад.",
-                                 reply_markup=get_callback_btns(btns={**{"⬅️ Назад": "back_purchase"}}))
-            
-@user_private.callback_query(F.data == 'back_purchase')
-async def back_search(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
-    """
-    Обработчик для возврата в сцену покупок.
-    """
-    await callback.answer()
-    await scenes.enter(Purchase)
+                                 reply_markup=get_callback_btns(btns={"⬅️ Назад": "back_purchase"}))
 
 @user_private.message(AddPurchases.title)
 async def add_title(message: types.Message, state: FSMContext):
@@ -824,21 +829,21 @@ async def generate_analytics_graph(analytics_data, start_date, end_date):
     # Create a figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
 
-    # Plot 1: Daily spending
+    # Plot 1: Ежедневные траты
     ax1.bar(dates, prices, width=0.8, align='center')
-    ax1.set_xlabel("Date")
-    ax1.set_ylabel("Daily Spending")
-    ax1.set_title("Daily Spending")
+    ax1.set_xlabel("Дата")
+    ax1.set_ylabel("Ежедневные траты")
+    ax1.set_title("Ежедневные траты")
     ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax1.tick_params(axis='x', rotation=45)
     ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-    # Plot 2: Cumulative spending
+    # Plot 2: Совокупные расходы
     ax2.plot(dates, cumulative_spending, marker='o', color='green')
-    ax2.set_xlabel("Date")
-    ax2.set_ylabel("Cumulative Spending")
-    ax2.set_title("Cumulative Spending Over Time")
+    ax2.set_xlabel("Дата")
+    ax2.set_ylabel("Совокупные расходы")
+    ax2.set_title("Совокупные расходы за период времени")
     ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax2.tick_params(axis='x', rotation=45)
@@ -1300,14 +1305,6 @@ async def save_adata(event: types.Message | types.CallbackQuery, state: FSMConte
     await state.set_data(data)
     await scenes.enter(Analisis)
 
-@user_private.callback_query(F.data == 'back_analisis')
-async def back_search(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
-    """
-    Обработчик для возврата в сцену аналитики.
-    """
-    await callback.answer()
-    await scenes.enter(Analisis)
-
 #=========Analisis=========
 
 #=========Reminders=========
@@ -1489,7 +1486,7 @@ async def add_reminder_description(message: types.Message, state: FSMContext):
 
 @user_private.message(
         AddReminders.date_reminder, 
-        F.text.func(lambda text: re.findall(r'(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})', text) # fixed regex for date format
+        F.text.func(lambda text: re.findall(r'(\d+){4}-(\d+){2}-(\d+){2} (\d+){2}:(\d+){2}', text) # fixed regex for date format
                     and datetime.strptime(text, '%Y-%m-%d %H:%M')
                     .replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)))
 async def add_reminder_date(message: types.Message, state: FSMContext, scenes: ScenesManager, apscheduler: AsyncIOScheduler, bot: Bot):

@@ -8,12 +8,12 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.scene import SceneRegistry
 from aiogram.fsm.storage.memory import SimpleEventIsolation
 
-from config import TOKEN
-from telegram.handlers.user_private import user_private, Menu, Profile, Notes, Purchase, Analisis, Reminders
-from telegram.common.bot_cmds_list import private
-from telegram.middlewares.scheduler import CounterMiddleware
+from bumblebeereminderbot.config import TOKEN
+from bumblebeereminderbot.telegram.handlers.user_private import user_private, Menu, Profile, Notes, Purchase, Analisis, Reminders
+from bumblebeereminderbot.telegram.common.bot_cmds_list import private
+from bumblebeereminderbot.telegram.middlewares.scheduler import CounterMiddleware
 
-from database.models import async_main
+from bumblebeereminderbot.database.models import async_main
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
