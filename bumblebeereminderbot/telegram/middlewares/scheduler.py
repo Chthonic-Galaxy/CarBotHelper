@@ -41,7 +41,7 @@ class CounterMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-async def send_message_scheduler(bot_token: str, chat_id: int, user_id: int, reminder_title: str):
+async def send_message_scheduler(bot_token: str, chat_id: int, user_id: int, reminder_title: str, reminder_description: str):
     """
     Функция, которая отправляет запланированное сообщение пользователю.
 
@@ -53,7 +53,7 @@ async def send_message_scheduler(bot_token: str, chat_id: int, user_id: int, rem
     try:
         await bot.send_message(
             chat_id=chat_id,
-            text=f"@{user_id}\nЗавершите задание - {reminder_title}"
+            text=f"@{user_id}\nЗавершите задание - {reminder_title}\n{reminder_description}"
         )
     finally:
         await bot.session.close()

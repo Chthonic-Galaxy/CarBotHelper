@@ -2,7 +2,8 @@
 Модуль обработчиков для приватных сообщений пользователя.
 """
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+from tzlocal import get_localzone
 import json
 import re
 
@@ -29,6 +30,9 @@ import bumblebeereminderbot.database.requests as rq
 
 # Создание роутера для обработки приватных сообщений
 user_private = Router()
+
+# Получаем часовой пояс системы
+local_tz = get_localzone()
 
 # Константы для инлайн кнопок
 BUTTONS = {
@@ -134,6 +138,12 @@ class Menu(Scene, state="main_menu"):
         """
         await self.wizard.goto(Reminders)
 
+    @on.callback_query.leave()
+    @on.message.leave()
+    async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Действие при выходе из сцены."""
+        pass 
+
 #=========Profile=========
 class AddCar(StatesGroup):
     """
@@ -236,6 +246,12 @@ class Profile(Scene, state="profile"):
         await rq.remove_car(car_id=callback_data.id)
         await self.wizard.retake()
 
+    @on.callback_query.leave()
+    @on.message.leave()
+    async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Действие при выходе из сцены."""
+        pass 
+
 @user_private.message(AddCar.name, F.text.regexp(r'^\w+$'))
 async def add_auto_name(message: types.Message, state: FSMContext):
     """
@@ -259,7 +275,7 @@ async def add_auto_year(message: types.Message, state: FSMContext, scenes: Scene
     """
     Сохранение года автомобиля и возврат в профиль.  Проверяет корректность года выпуска.
     """
-    if 1900 <= int(message.text) <= datetime.now(timezone.utc).year:
+    if 1900 <= int(message.text) <= datetime.now(local_tz).year:
         data = await state.get_data()
         data["add_car"].append(message.text)
         await message.bot.delete_messages(
@@ -340,13 +356,6 @@ class Notes(Scene, state="notes"):
                 reply_markup=get_callback_btns(btns=buttons)
             )
             await event.answer()
-
-    @on.callback_query(F.data == "main_menu")
-    async def goto_main_menu(self, callback: types.CallbackQuery, state: FSMContext):
-        """
-        Переход в главное меню.
-        """
-        await self.wizard.goto(Menu)
 
     @on.callback_query(F.data == "back")
     async def back(self, callback: types.CallbackQuery, state: FSMContext):
@@ -447,6 +456,20 @@ class Notes(Scene, state="notes"):
         finally:
             await callback.answer()
 
+    
+    @on.callback_query(F.data == "main_menu")
+    async def goto_main_menu(self, callback: types.CallbackQuery, state: FSMContext):
+        """
+        Переход в главное меню.
+        """
+        await self.wizard.goto(Menu)
+
+    @on.callback_query.leave()
+    @on.message.leave()
+    async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Действие при выходе из сцены."""
+        pass 
+
 @user_private.message(AddNote.title, F.text)
 async def add_note_title(message: types.Message, state: FSMContext):
     """
@@ -514,7 +537,13 @@ class Purchase(Scene, state='purchase'):
         Обработчик входа в сцену покупок. Отображает список покупок пользователя.
         """
         try:
-            event.message.delete()
+            await event.bot.delete_messages(
+                chat_id=event.from_user.id,
+                message_ids=[
+                    event.message_id - 1,
+                    event.message_id
+                    ]
+            )
         except:
             pass
 
@@ -546,7 +575,7 @@ class Purchase(Scene, state='purchase'):
                     reply_markup=get_callback_btns(btns=buttons)
                 )
                 await event.answer()
-        except:                
+        except:  
             if isinstance(event, types.Message):
                 await event.answer(
                     text=message_text,
@@ -617,7 +646,13 @@ class Purchase(Scene, state='purchase'):
         Просмотр всех покупок с фото и датой.
         """
         try:
-            await callback.message.delete()
+            await callback.bot.delete_messages(
+                chat_id=callback.from_user.id,
+                message_ids=[
+                    callback.message.message_id - 1,
+                    callback.message.message_id
+                    ]
+            )
         except:
             pass
         purchases = [i for i in await rq.get_purchases(callback.from_user.id)]
@@ -625,23 +660,16 @@ class Purchase(Scene, state='purchase'):
         photo_dicts = {purchase.purchase_id: json.loads(purchase.purchase_photo) for purchase in purchases if purchase.purchase_photo}
 
         for k, v in title_dicts.items():
-            if k in photo_dicts:
+            if k not in photo_dicts:
+                await callback.message.answer(text=v)
+            else:
                 if isinstance(photo_dicts[k], list):
                     photos = [PhotoSize(**photo) for photo in photo_dicts[k]]  
                     for photo in photos:
-                        if photo.height == 1280:
-                            await callback.message.answer_photo(photo.file_id, caption=v)
+                        await callback.message.answer_photo(photo.file_id, caption=v)
                 else:
-                    try:
-                        photo = PhotoSize(**photo_dicts[k])
-                        if photo.height == 1280:
-                            await callback.message.answer_photo(photo.file_id, caption=v)
-                    except TypeError:
-                        print(f"Invalid photo data for purchase ID {k}: {photo_dicts[k]}")
-
-        for k, v in title_dicts.items():
-            if k not in photo_dicts:
-                await callback.message.answer(text=v)
+                    photo = PhotoSize(**photo_dicts[k])
+                    await callback.message.answer_photo(photo.file_id, caption=v)
         await self.wizard.retake()
 
     @on.callback_query(F.data == 'search_purchase')
@@ -663,8 +691,14 @@ class Purchase(Scene, state='purchase'):
         )
         await callback.answer()
 
+    @on.callback_query.leave()
+    @on.message.leave()
+    async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Действие при выходе из сцены."""
+        pass 
+
 @user_private.callback_query(AddPurchases.search, F.data == 'back_purchase')
-async def back_search(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
+async def back_purchases(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
     """
     Обработчик для возврата в сцену покупок.
     """
@@ -693,37 +727,27 @@ async def search_purchase(message: types.Message, state: FSMContext, scenes: Sce
 
     if title_dicts:
         for k, v in title_dicts.items():
-            if k in photo_dicts:
+            if k not in photo_dicts:
+                await message.answer(text=v)
+            else:
                 if isinstance(photo_dicts[k], list):
                     photos = [PhotoSize(**photo) for photo in photo_dicts[k]]  
                     for photo in photos:
-                        if photo.height == 1280:
-                            await message.answer_photo(photo.file_id, caption=v)
+                        await message.answer_photo(photo.file_id, caption=v)
                 else:
-                    try:  # Add a try-except block for TypeError
-                        photo = PhotoSize(**photo_dicts[k])
-                        if photo.height == 1280:
-                            await message.answer_photo(photo.file_id, caption=v)
-                    except TypeError as e: # Better to be specific about exception types
-                        print(f"Invalid photo data for purchase ID {k}: {photo_dicts[k]} - Error: {e}")
-
-
-        for k, v in title_dicts.items():
-            if k not in photo_dicts:
-                await message.answer(text=v)
+                    photo = PhotoSize(**photo_dicts[k])
+                    await message.answer_photo(photo.file_id, caption=v)
         await scenes.enter(Purchase)
     else:
         await message.answer("Такого товара нет среди покупок.\nВведите снова или нажмите кнопку назад.",
                                  reply_markup=get_callback_btns(btns={"⬅️ Назад": "back_purchase"}))
 
-@user_private.message(AddPurchases.title)
+@user_private.message(AddPurchases.title, F.text)
 async def add_title(message: types.Message, state: FSMContext):
     """
     Добавление названия покупки. Переходит в состояние AddPurchases.photo.  Проверяет на уникальность названия.
     """
-    title_list = [i.purchase_title for i in await rq.get_purchases(tg_id=message.from_user.id)]
-    if not any(message.text.lower() == title.lower() for title in title_list):
-        await state.update_data(add_purchase=[message.text])
+    try:
         await message.bot.delete_messages(
             chat_id=message.from_user.id,
             message_ids=[
@@ -731,13 +755,17 @@ async def add_title(message: types.Message, state: FSMContext):
                 message.message_id
             ]
         )
+    except:
+        pass    
+    title_list = [i.purchase_title for i in await rq.get_purchases(tg_id=message.from_user.id)]
+    if not any(message.text.lower() == title.lower() for title in title_list):
+        await state.update_data(add_purchase=[message.text])
         await state.set_state(AddPurchases.photo)
         await message.answer("Если не хотите добавить фото товара или услуги\nпросто нажмите продолжить.",
-    reply_markup=get_callback_btns(btns={"Продолжить": "break"}))
+                            reply_markup=get_callback_btns(btns={"Продолжить": "break"}))
     else:
         await message.answer("Введите уникальное название.")
-
-#TODO: Fix the get image logic to get the best image and separate with `skip`(break) logic  
+ 
 @user_private.message(AddPurchases.photo)
 @user_private.callback_query(F.data == 'break')
 async def add_photo(event: types.Message | types.CallbackQuery, state: FSMContext, scenes: ScenesManager):
@@ -747,7 +775,7 @@ async def add_photo(event: types.Message | types.CallbackQuery, state: FSMContex
     data = await state.get_data()
     if isinstance(event, types.CallbackQuery):
         await rq.set_purchase(
-            purchase_date=datetime.now(timezone.utc), 
+            purchase_date=datetime.now(local_tz), 
             tg_id=event.from_user.id, 
             purchase_title=data.get('add_purchase')[0])
         await scenes.enter(Purchase)
@@ -763,14 +791,14 @@ async def add_photo(event: types.Message | types.CallbackQuery, state: FSMContex
         except:
             pass
         await rq.set_purchase(
-            purchase_date=datetime.now(timezone.utc), 
+            purchase_date=datetime.now(local_tz), 
             tg_id=event.from_user.id, 
             purchase_title=data.get('add_purchase')[0])
         await scenes.enter(Purchase)
     else:
-        data['add_purchase'].append(event.photo)
+        data['add_purchase'].append(event.photo[-1])
         await rq.set_purchase(
-            purchase_date=datetime.now(timezone.utc),
+            purchase_date=datetime.now(local_tz),
             tg_id=event.from_user.id, 
             purchase_title=data.get('add_purchase')[0],
             purchase_photo=json.dumps(deserialize_telegram_object_to_python(data.get('add_purchase')[1])))
@@ -786,6 +814,39 @@ async def add_photo(event: types.Message | types.CallbackQuery, state: FSMContex
             pass
         await scenes.enter(Purchase)
 
+@user_private.message(AddPurchases.title)
+async def incorerct_add_title_purchase(message: types.Message, state: FSMContext, scenes: ScenesManager):
+    """
+    Возврат к вводу названия товара.
+    """
+    try:
+        await message.bot.delete_messages(
+            chat_id=message.from_user.id,
+            message_ids=[
+                message.message_id - 1,
+                message.message_id
+            ]
+        )
+    except:
+        pass    
+    await message.answer("Некорректные данные названия товара. Введите в строку текст.")
+
+@user_private.message(AddPurchases.search)
+async def incorerct_search_purchase(message: types.Message, state: FSMContext, scenes: ScenesManager):
+    """
+    Возврат к запросу поиска товара.
+    """
+    try:
+        await message.bot.delete_messages(
+            chat_id=message.from_user.id,
+            message_ids=[
+                message.message_id - 1,
+                message.message_id
+            ]
+        )
+    except:
+        pass    
+    await message.answer("Некорректные данные поиска. Введите в строку текст.")
 
 #=========Analisis=========
 
@@ -1145,6 +1206,12 @@ class Analisis(Scene, state="analysis"):
             start_date = end_date - timedelta(days=days)
             await generate_and_send_report(callback, state, scenes, start_date, end_date)
 
+    @on.callback_query.leave()
+    @on.message.leave()
+    async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Действие при выходе из сцены."""
+        pass 
+
 
 @user_private.message(PeriodSelection.start_date, F.text)
 async def process_start_date(message: types.Message, state: FSMContext):
@@ -1299,7 +1366,7 @@ async def save_adata(event: types.Message | types.CallbackQuery, state: FSMConte
         analytics_title=adata[0],
         analytics_price=adata[1],
         analytics_description=adata[2] if len(adata) == 3 else None,
-        analytics_date=datetime.now(timezone.utc),
+        analytics_date=datetime.now(local_tz),
         tg_id=event.from_user.id
     )
     data.pop("add_adata", None) # Безопасное удаление ключа 'add_adata' из data
@@ -1489,12 +1556,12 @@ async def add_reminder_description(message: types.Message, state: FSMContext):
         AddReminders.date_reminder, 
         F.text.func(lambda text: re.findall(r'(\d+){4}-(\d+){2}-(\d+){2} (\d+){2}:(\d+){2}', text) # fixed regex for date format
                     and datetime.strptime(text, '%Y-%m-%d %H:%M')
-                    .replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)))
+                    .replace(tzinfo=local_tz) > datetime.now(local_tz)))
 async def add_reminder_date(message: types.Message, state: FSMContext, scenes: ScenesManager, apscheduler: AsyncIOScheduler, bot: Bot):
     """
     Добавление даты и времени напоминания.  Сохраняет напоминание в базе данных и добавляет задачу в планировщик.
     """
-    date_reminder = datetime.strptime(message.text, '%Y-%m-%d %H:%M').replace(tzinfo=timezone.utc)
+    date_reminder = datetime.strptime(message.text, '%Y-%m-%d %H:%M').replace(tzinfo=local_tz)
     await state.update_data(add_date=date_reminder)
     data = await state.get_data()
     try:
@@ -1518,7 +1585,8 @@ async def add_reminder_date(message: types.Message, state: FSMContext, scenes: S
             'bot_token': bot.token,
             'chat_id': message.chat.id,
             'user_id': message.from_user.id,
-            'reminder_title': data['add_title']
+            'reminder_title': data['add_title'],
+            'reminder_description': data['add_description']
         },
         id=f"reminder_{message.from_user.id}_{data['add_title']}"
     )

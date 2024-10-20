@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.12"
 aiogram = {url = "https://github.com/aiogram/aiogram/archive/refs/heads/dev-3.x.zip"}
 python-dotenv = "^1.0.1"
+tzlocal = "^5.2"
 
 
 [tool.poetry.group.scheduler.dependencies]
