@@ -325,12 +325,18 @@ class Notes(Scene, state="notes"):
         Обработчик входа в сцену заметок.  Отображает список заметок пользователя.
         """
         try:
-            # Пытаемся удалить предыдущее сообщение
-            await event.message.delete()
+            await event.bot.delete_messages(
+                chat_id=event.from_user.id,
+                message_ids=[
+                    event.message_id - 1,
+                    event.message_id
+                    ]
+            )
         except:
             pass
 
         notes = [i for i in await rq.get_notes(tg_id=event.from_user.id)]
+        await state.update_data(notes=notes)
 
         message_text = '\n'.join(f'{i}: {note.note_title} {note.note_date}' for i, note in enumerate(notes, start=1)) or "У вас нет заметок."
         buttons = {
@@ -343,19 +349,37 @@ class Notes(Scene, state="notes"):
             "Main": "main_menu"
         }
 
-        if isinstance(event, types.Message):
-            # Отправка информации о заметках
-            await event.answer(
-                text=message_text,
-                reply_markup=get_callback_btns(btns=buttons)
-            )
-        else:
-            # Отправка информации о заметках
-            await event.message.answer(
-                text=message_text,
-                reply_markup=get_callback_btns(btns=buttons)
-            )
-            await event.answer()
+        try:
+            if isinstance(event, types.Message):
+                await event.edit_text(
+                    text=message_text,
+                    reply_markup=get_callback_btns(btns=buttons)
+                )
+            else:
+                await event.message.edit_text(
+                    text=message_text,
+                    reply_markup=get_callback_btns(btns=buttons)
+                )
+                await event.answer()
+        except:  
+            if isinstance(event, types.Message):
+                await event.answer(
+                    text=message_text,
+                    reply_markup=get_callback_btns(btns=buttons)
+                )
+            else:
+                await event.message.answer(
+                    text=message_text,
+                    reply_markup=get_callback_btns(btns=buttons)
+                )
+                await event.answer()
+            
+    @on.callback_query(F.data == "main_menu")
+    async def goto_main_menu(self, callback: types.CallbackQuery, state: FSMContext):
+        """
+        Переход в главное меню.
+        """
+        await self.wizard.goto(Menu)
 
     @on.callback_query(F.data == "back")
     async def back(self, callback: types.CallbackQuery, state: FSMContext):
@@ -384,10 +408,10 @@ class Notes(Scene, state="notes"):
         Начало процесса удаления заметки.  Отображает список заметок для удаления.
         """
         data = await state.get_data()
-        notes = data.get("notes", [])
-        btns = {f"{i+1}": Remove(id=i).pack() for i in range(len(notes))}
+        notes = data["notes"]
+        btns = {f"{i}": Remove(id=note_pk.note_id).pack() for i, note_pk in enumerate(notes, start=1)}
         await callback.message.edit_text(
-            text="\n".join(f"{i+1}. {title[0]}" for i, title in enumerate(notes)),
+            text='\n'.join(f'{i}: {note.note_title} {note.note_date}' for i, note in enumerate(notes, start=1)),
             reply_markup=get_callback_btns(
                 btns={**btns, **{"⬅️ Назад": "back"}},
                 custom=True
@@ -399,15 +423,12 @@ class Notes(Scene, state="notes"):
         """
         Удаление выбранной заметки.  Удаляет заметку из списка и обновляет состояние.
         """
-        data = await state.get_data()
-        notes = data.get("notes", [])
         try:
-            notes.pop(callback_data.id)
-        except IndexError:  # Обработка потенциальной ошибки IndexError
+            await rq.remove_note(note_id=callback_data.id)
+        except:  # Обработка потенциальной ошибки IndexError
             await callback.answer("Ошибка: заметка не найдена.")
             return
 
-        await state.update_data(notes=notes)
         await self.wizard.retake()
 
     @on.callback_query(F.data == "show_note")
@@ -416,10 +437,10 @@ class Notes(Scene, state="notes"):
         Начало процесса просмотра заметки. Отображает список заметок для просмотра.
         """
         data = await state.get_data()
-        notes = data.get("notes", [])
+        notes = data["notes"]
         btns = {f"{i+1}": View(id=i).pack() for i in range(len(notes))}
         await callback.message.edit_text(
-            text="\n".join(f"{i+1}. {title[0]}" for i, title in enumerate(notes)),
+            text='\n'.join(f'{i}: {note.note_title} {note.note_date}' for i, note in enumerate(notes, start=1)),
             reply_markup=get_callback_btns(
                 btns={**btns, **{"⬅️ Назад": "back"}},
                 custom=True
@@ -432,7 +453,7 @@ class Notes(Scene, state="notes"):
         Отображение выбранной заметки.  Показывает полное содержание заметки.
         """
         data = await state.get_data()
-        notes = data.get("notes", [])
+        notes = data["notes"]
         try:
             note = notes[callback_data.id]
         except IndexError:  # Обработка потенциальной ошибки IndexError
@@ -440,7 +461,7 @@ class Notes(Scene, state="notes"):
             return
         try:
             await callback.message.edit_text(
-                text=note[1],
+                text=note.note_description,
                 reply_markup=get_callback_btns(
                     btns={"⬅️ Назад": "back"}
                 )
@@ -448,21 +469,13 @@ class Notes(Scene, state="notes"):
         except:
             await callback.message.delete()
             await callback.message.answer(
-                text=note[1],
+                text=note.note_description,
                 reply_markup=get_callback_btns(
                     btns={"⬅️ Назад": "back"}
                 )
             )
         finally:
             await callback.answer()
-
-    
-    @on.callback_query(F.data == "main_menu")
-    async def goto_main_menu(self, callback: types.CallbackQuery, state: FSMContext):
-        """
-        Переход в главное меню.
-        """
-        await self.wizard.goto(Menu)
 
     @on.callback_query.leave()
     @on.message.leave()
@@ -475,9 +488,25 @@ async def add_note_title(message: types.Message, state: FSMContext):
     """
     Сохранение заголовка заметки и переход к вводу описания.
     """
-    await state.update_data(add_note=[message.text])
-    await state.set_state(AddNote.description)
-    await message.answer("Введите текст заметки:")
+    
+    try:
+        await message.bot.delete_messages(
+            chat_id=message.from_user.id,
+            message_ids=[
+                message.message_id - 1,
+                message.message_id
+            ]
+        )
+    except:
+        pass
+    
+    existing_notes = await rq.get_notes(message.from_user.id)
+    if not any(message.text.lower() == note.note_title.lower() for note in existing_notes):
+        await state.update_data(add_note=[message.text])
+        await state.set_state(AddNote.description)
+        await message.answer("Введите текст заметки:")
+    else:
+        await message.answer(text="Такой заголовок заметки уже существует. Введите снова.")
 
 @user_private.message(AddNote.title)
 async def incorrect_note_title(message: types.Message):
@@ -492,15 +521,27 @@ async def add_note_description(message: types.Message, state: FSMContext, scenes
     Сохранение описания заметки и возврат в сцену заметок.
     Добавляет заметку в список и обновляет состояние.
     """
+    try:
+        await message.bot.delete_messages(
+            chat_id=message.from_user.id,
+            message_ids=[
+                message.message_id - 1,
+                message.message_id
+            ]
+        )
+    except:
+        pass
+    
     data = await state.get_data()
     data_add_note = data.get("add_note", [])
     data_add_note.append(message.text)
 
-
-    notes = data.get("notes", [])
-    notes.append(tuple(data_add_note))
-
-    await state.update_data(notes=notes) # Обновление заметок в хранилище состояния
+    await rq.set_note(
+                note_title=data_add_note[0],
+                note_date=datetime.now(local_tz),
+                tg_id=message.from_user.id,
+                note_description=data_add_note[1]
+            )
 
     del data["add_note"] # Удаление данных из FSMContext для соображений грамотного распоряжения памятью
     await state.set_data(data)
@@ -1210,7 +1251,7 @@ class Analisis(Scene, state="analysis"):
     @on.message.leave()
     async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
         """Действие при выходе из сцены."""
-        pass 
+        pass
 
 
 @user_private.message(PeriodSelection.start_date, F.text)
