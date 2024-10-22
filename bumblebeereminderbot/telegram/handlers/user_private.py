@@ -27,6 +27,7 @@ from bumblebeereminderbot.telegram.kbd.inline import get_callback_btns, Remove, 
 from bumblebeereminderbot.telegram.middlewares.scheduler import send_message_scheduler
 
 import bumblebeereminderbot.database.requests as rq
+from bumblebeereminderbot.utils.searcher import searcher
 
 # Создание роутера для обработки приватных сообщений
 user_private = Router()
@@ -306,6 +307,9 @@ async def incorrect_auto_year(message: types.Message):
 #=========Profile=========
 
 #==========Notes==========
+class SearchNote(StatesGroup):
+    search = State()
+
 class AddNote(StatesGroup):
     """
     Состояния для процесса добавления заметки.
@@ -343,6 +347,7 @@ class Notes(Scene, state="notes"):
             "Удалить": "remove_note",
             "Добавить": "add_note",
             "Показать": "show_note",
+            "Поиск": "search_note",
             "Main": "main_menu"
         } if notes else {
             "Добавить": "add_note",
@@ -456,12 +461,13 @@ class Notes(Scene, state="notes"):
         notes = data["notes"]
         try:
             note = notes[callback_data.id]
+            message_text = f"{note.note_title} {note.note_date}\n\n{note.note_description}"
         except IndexError:  # Обработка потенциальной ошибки IndexError
             await callback.answer("Ошибка: заметка не найдена.")
             return
         try:
             await callback.message.edit_text(
-                text=note.note_description,
+                text=message_text,
                 reply_markup=get_callback_btns(
                     btns={"⬅️ Назад": "back"}
                 )
@@ -469,13 +475,24 @@ class Notes(Scene, state="notes"):
         except:
             await callback.message.delete()
             await callback.message.answer(
-                text=note.note_description,
+                text=message_text,
                 reply_markup=get_callback_btns(
                     btns={"⬅️ Назад": "back"}
                 )
             )
         finally:
             await callback.answer()
+
+    @on.callback_query(F.data == "search_note")
+    async def search_note(self, callback: types.CallbackQuery, state: FSMContext):
+        await state.set_state(SearchNote.search)
+        await callback.message.edit_text(
+            text="Введите текст, и мы попробуем найти интересующие вас заметки:",
+            reply_markup=get_callback_btns(
+                btns={"⬅️ Назад": "back_notes"}
+            )
+        )
+        await callback.answer()
 
     @on.callback_query.leave()
     @on.message.leave()
@@ -553,6 +570,55 @@ async def incorrect_note_description(message: types.Message):
     Обработка некорректного ввода описания заметки.  Просит ввести текст.
     """
     await message.answer(text="Введите текст.")
+
+
+@user_private.callback_query(SearchNote.search, F.data == 'back_notes')
+async def back_notes(callback: types.CallbackQuery, scenes: ScenesManager, state: FSMContext):
+    """
+    Обработчик для возврата в сцену покупок.
+    """
+    await callback.answer()
+    await scenes.enter(Notes)
+    
+@user_private.message(SearchNote.search, F.text)
+async def search_note_text(message: types.Message, state: FSMContext, scenes: ScenesManager):
+    try:
+        await message.bot.delete_messages(
+            chat_id=message.from_user.id,
+            message_ids=[
+                message.message_id - 1,
+                message.message_id
+                ]
+        )
+    except:
+        pass
+    
+    data = await state.get_data()
+    notes: list[rq.Note] = data["notes"]
+    targeted_notes = searcher(notes, message.text, ["note_title", "note_description"])
+    message_text = ('\n'.join(f'{i}: {note.note_title} {note.note_date}' for i, note in enumerate(notes, start=1) if i-1 in targeted_notes) or
+    "Ничего не найдено. Введите текст заметки снова:")
+    if targeted_notes:
+        btns = {f"{i+1}": View(id=i).pack() for i in targeted_notes}
+        await message.answer(
+            text=message_text,
+            reply_markup=get_callback_btns(
+                btns={**btns, **{"⬅️ Назад": "back"}},
+                custom=True
+            )
+        )
+        await state.set_state("notes") # Мы просто ставим состояние на состояние сцены Notes, но мы не вызываем точку входа
+    else:
+        await message.answer(
+            text=message_text,
+            reply_markup=get_callback_btns(
+                btns={"⬅️ Назад": "back_notes"}
+            )
+        )
+
+@user_private.message(SearchNote.search)
+async def search_note_text(message: types.Message):
+    await message.answer("Введите текст.")
 
 #==========Notes==========
 
