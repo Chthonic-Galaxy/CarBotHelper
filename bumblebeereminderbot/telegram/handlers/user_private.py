@@ -1685,15 +1685,15 @@ async def add_reminder_date(message: types.Message, state: FSMContext, scenes: S
                           car_id=data['car_id'])
     
     # Добавляем задачу в планировщик
+    data_id = json.dumps(deserialize_telegram_object_to_python(data))
     job = apscheduler.add_job(
         send_message_scheduler,
         trigger=DateTrigger(run_date=data['add_date']),
         kwargs={
             'bot_token': bot.token,
             'chat_id': message.chat.id,
-            'user_id': message.from_user.id,
-            'reminder_title': data['add_title'],
-            'reminder_description': data['add_description']
+            'fullname': message.from_user.full_name,
+            'data': data_id
         },
         id=f"reminder_{message.from_user.id}_{data['add_title']}"
     )

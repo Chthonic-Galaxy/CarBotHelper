@@ -1,3 +1,5 @@
+import json
+
 from typing import Callable, Any, Dict, Awaitable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -41,7 +43,7 @@ class CounterMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-async def send_message_scheduler(bot_token: str, chat_id: int, user_id: int, reminder_title: str, reminder_description: str):
+async def send_message_scheduler(bot_token: Bot, chat_id: str, fullname: str, data: str):
     """
     Функция, которая отправляет запланированное сообщение пользователю.
 
@@ -50,10 +52,11 @@ async def send_message_scheduler(bot_token: str, chat_id: int, user_id: int, rem
     :param date: Словарь с данными о времени и интервалах напоминания.
     """
     bot = Bot(token=bot_token)
+    data_event = json.loads(data)
     try:
         await bot.send_message(
             chat_id=chat_id,
-            text=f"@{user_id}\nЗавершите задание - {reminder_title}\n{reminder_description}"
+            text=f'Привет, {fullname}, у тебя есть задача {data_event['add_title']}: {data_event['add_description']}'
         )
     finally:
         await bot.session.close()
