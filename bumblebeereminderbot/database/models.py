@@ -25,6 +25,14 @@ class User(Base):
 
     # Первичный ключ таблицы и уникальный идентификатор пользователя в Telegram
     tg_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, unique=True)
+    # Определение отношения между Reminder и Car моделями
+    car = relationship('Car', back_populates='tg', cascade="all, delete")
+    # Определение отношения между User и Note моделями
+    note = relationship('Note', back_populates='tg', cascade="all, delete")
+    # Определение отношения между User и Purchase моделями
+    purchase = relationship('Purchase', back_populates='tg', cascade="all, delete")
+    # Определение отношения между User и Analytics моделями
+    analytics = relationship('Analytics', back_populates='tg', cascade="all, delete")
 
 
 class Car(Base):
@@ -42,8 +50,10 @@ class Car(Base):
     
     # Внешний ключ, связывающий событие с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
-    # Определение отношения между Car и User моделями
-    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
+        # Определение отношения между Car и User моделями
+    tg = relationship("User", foreign_keys=[tg_id], back_populates='car')
+    # Определение отношения между Reminder и Car моделями
+    reminder = relationship('Reminder', back_populates='car', cascade="all, delete")
 
 
 class Reminder(Base):
@@ -66,7 +76,7 @@ class Reminder(Base):
     # Внешний ключ, связывающий событие с автомобилем
     car_id = mapped_column(Integer, ForeignKey("cars.car_id"))
     # Определение отношения между Reminder и Car моделями
-    car = relationship("Car", foreign_keys=[car_id], cascade="all, delete")
+    car = relationship("Car", foreign_keys=[car_id], back_populates='reminder')
 
 
 class Note(Base):
@@ -87,7 +97,7 @@ class Note(Base):
     # Внешний ключ, связывающий заметку с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Note и User моделями
-    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
+    tg = relationship("User", foreign_keys=[tg_id], back_populates='note')
 
 
 class Purchase(Base):
@@ -108,7 +118,7 @@ class Purchase(Base):
     # Внешний ключ, связывающий покупку с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Purchase и User моделями
-    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
+    tg = relationship("User", foreign_keys=[tg_id], back_populates='purchase')
 
 
 class Analytics(Base):
@@ -131,7 +141,7 @@ class Analytics(Base):
     # Внешний ключ, связывающий аналитику с пользователем
     tg_id = mapped_column(BigInteger, ForeignKey("users.tg_id"))
     # Определение отношения между Analytics и User моделями
-    tg = relationship("User", foreign_keys=[tg_id], cascade="all, delete")
+    tg = relationship("User", foreign_keys=[tg_id], back_populates='analytics')
 
 
 async def async_main():
