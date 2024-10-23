@@ -1,7 +1,7 @@
 from aiogram.filters.callback_data import CallbackData
 from aiogram.utils.keyboard import InlineKeyboardButton, InlineKeyboardBuilder
 
-from ...utils.create_dicts import super_dicts_creator
+from bumblebeereminderbot.utils import super_dicts_creator
 
 # Классы для обработки callback_data кнопок (Callback Factory)
 class Remove(CallbackData, prefix="remove"):
@@ -12,6 +12,9 @@ class View(CallbackData, prefix="view"):
     
 class Period(CallbackData, prefix="period"):
     period: int | str
+    
+class MovePage(CallbackData, prefix="paginator"):
+    move_to: int
 
 def get_callback_btns(
     *,
