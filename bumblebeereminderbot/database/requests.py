@@ -133,6 +133,18 @@ async def get_cars(tg_id):
     async with async_session() as session:
         # Получение всех автомобилей пользователя по его tg_id
         return await session.scalars(select(Car).where(Car.tg_id == tg_id))
+    
+async def get_car(car_id):
+    """
+    Асинхронная функция для получения всех автомобилей пользователя
+
+    :param car_id: Ключ Car
+    :return: Генератор объекта Car, связанных с пользователем
+    """
+    # Создание асинхронной сессии с базой данных
+    async with async_session() as session:
+        # Получение автомобиля пользователя по его car_id
+        return await session.scalar(select(Car).where(Car.car_id == car_id))
 
 async def get_reminders(car_id):
     """
@@ -181,6 +193,13 @@ async def get_analytics(tg_id):
     async with async_session() as session:
         # Получение всех заметок по tg_id
         return await session.scalars(select(Analytics).where(Analytics.tg_id == tg_id))
+    
+async def update_car(car_id, name, year):
+    async with async_session() as session:
+        car = await session.scalar(select(Car).where(Car.car_id == car_id))
+        car.name = name if name else car.name
+        car.year = year if year else car.year
+        await session.commit()
 
 async def remove_car(car_id):
     """

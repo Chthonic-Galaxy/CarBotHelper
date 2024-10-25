@@ -44,8 +44,9 @@ BUTTONS = {
     "Analytics": "Аналитика",
     "Remove": "Удалить",
     "Add": "Добавить",
+    "View": "Просмотр",
     "Main": "В меню",
-    "Back": "Назад"
+    "Back": "Назад",
 }
 
 
@@ -151,7 +152,9 @@ class AddCar(StatesGroup):
     Состояния для процесса добавления автомобиля.
     """
     name = State()
+    edit_name = State()
     year = State()
+    edit_year = State()
 
 class Profile(Scene, state="profile"):
     """
@@ -166,15 +169,17 @@ class Profile(Scene, state="profile"):
         """
         try:
             # Пытаемся удалить предыдущее сообщение
-            await event.message.delete()
+            if isinstance(event, types.Message):
+                await event.message.delete()
         except:
             pass
         cars = [i for i in await rq.get_cars(tg_id=event.from_user.id)]
 
-        message_text = '\n'.join(f'{i}: {car.name} {car.year}' for i, car in enumerate(cars, start=1)) or "У вас нет машин."
+        message_text = f'У вас {len(cars)} машины.' or "У вас нет машин."
         buttons = {
             BUTTONS["Remove"]: "remove_auto",
             BUTTONS["Add"]: "add_auto",
+            BUTTONS["View"]: "view_auto",
             BUTTONS["Main"]: "main_menu"
         } if cars else {
             BUTTONS["Add"]: "add_auto",
@@ -189,7 +194,7 @@ class Profile(Scene, state="profile"):
             )
         else:
             # Отправка информации об автомобилях
-            await event.message.answer(
+            await event.message.edit_text(
                 text=message_text,
                 reply_markup=get_callback_btns(btns=buttons)
             )
@@ -201,13 +206,6 @@ class Profile(Scene, state="profile"):
         Переход в главное меню.
         """
         await self.wizard.goto(Menu)
-
-    @on.callback_query(F.data == "back")
-    async def back(self, callback: types.CallbackQuery, state: FSMContext):
-        """
-        Возврат к предыдущему состоянию.
-        """
-        await self.wizard.retake()
 
     @on.callback_query(F.data == "add_auto")
     async def add_auto(self, callback: types.CallbackQuery, state: FSMContext):
@@ -247,11 +245,134 @@ class Profile(Scene, state="profile"):
         await rq.remove_car(car_id=callback_data.id)
         await self.wizard.retake()
 
+    @on.callback_query(F.data == 'view_auto')
+    async def view_cars(self, callback: types.CallbackQuery, state: FSMContext):
+        cars = await rq.get_cars(callback.from_user.id)
+
+        message_text = "Выберите автомобиль для подробной информации о нем."
+        buttons = {f'{car.name}': View(id=car.car_id).pack() for car in cars}
+
+        await callback.message.edit_text(
+            text=message_text,
+            reply_markup=get_callback_btns(btns={
+                **buttons, **{"⬅️ Назад": "back"}
+            })
+        )
+        await callback.answer()
+
+    @on.callback_query(View.filter())
+    async def view_car(self, callback: types.CallbackQuery, callback_data: View, state: FSMContext):
+        car = await rq.get_car(callback_data.id)
+        await state.update_data(edit_car=[car.car_id])
+
+        message_text = f'{car.name} - {car.year} года выпуска.'
+
+        await callback.message.edit_text(
+            text=message_text,
+            reply_markup=get_callback_btns(
+                btns={
+                    **{'Редактировать': 'edit'},
+                    **{"⬅️ Назад": "back"}
+                }
+            )
+        )
+        await callback.answer()
+
+    @on.callback_query(F.data == 'edit')
+    async def edit_car(self, callback: types.CallbackQuery, state: FSMContext):
+        await self.wizard.exit()
+        await state.set_state(AddCar.edit_name)
+
+        await callback.message.edit_text(text="Измените название автомобиля или нажмите пропустить.",
+                                      reply_markup=get_callback_btns(btns={
+                                          **{'Пропустить': 'next_name'},
+                                          **{"⬅️ Назад": "back_profiler"}
+                                      }))
+        await callback.answer()
+
+    @on.callback_query(F.data == "back")
+    async def back(self, callback: types.CallbackQuery, state: FSMContext):
+        """
+        Возврат к предыдущему состоянию.
+        """
+        await self.wizard.retake()
+
     @on.callback_query.leave()
     @on.message.leave()
     async def leave(self, event: types.Message | types.CallbackQuery, state: FSMContext):
         """Действие при выходе из сцены."""
         pass 
+
+@user_private.callback_query(F.data == 'back_profiler')
+async def back_profiler(callback: types.CallbackQuery, scenes: ScenesManager):
+    await scenes.enter(Profile)
+
+@user_private.message(AddCar.edit_name, F.text.regexp(r'^\w+$'))
+@user_private.callback_query(F.data == 'next_name')
+async def edit_name(event: types.Message | types.CallbackQuery, state: FSMContext):
+    """
+    Сохранение нового названия автомобиля и переход к вводу года.  Проверяет на уникальность названия.
+    """
+    data = await state.get_data()
+    car = await rq.get_car(data['edit_car'][0])
+    if isinstance(event, types.CallbackQuery):
+        data['edit_car'].append(car.name)
+        await state.set_state(AddCar.edit_year)
+        await event.message.edit_text("Введите год авто или нажмите пропустить.",
+                            reply_markup=get_callback_btns(
+                                btns={
+                                    **{'Пропустить': 'next_year'},
+                                    **{"⬅️ Назад": "back_profiler"}
+                                }
+                            ))
+        await event.answer()
+    else:
+        if not event.text.lower() == car.name.lower():
+            data['edit_car'].append(event.text)
+            await state.set_state(AddCar.edit_year)
+            await event.answer("Введите год авто или нажмите пропустить.",
+                               reply_markup=get_callback_btns(
+                                   btns={
+                                        **{'Пропустить': 'next_year'},
+                                        **{"⬅️ Назад": "back_profiler"}
+                                   }
+                               ))
+            await event.bot.delete_messages(
+                chat_id=event.chat.id,
+                message_ids=[event.message_id - 1,
+                         event.message_id]
+            )
+        else:
+            await event.answer(text="Название автомобиля уже существует. Введите снова.")
+        
+@user_private.message(AddCar.edit_year, F.text.regexp(r'^\d+$'))
+@user_private.callback_query(F.data == 'next_year')
+async def edit_year(event: types.Message | types.CallbackQuery, state: FSMContext, scenes: ScenesManager):
+    """
+    Сохранение года автомобиля и возврат в профиль.  Проверяет корректность года выпуска.
+    """
+    data = await state.get_data()
+    car = await rq.get_car(data['edit_car'][0])
+    if isinstance(event, types.CallbackQuery):
+        data = await state.get_data()
+        data["edit_car"].append(car.year)
+        await rq.update_car(car_id=data["edit_car"][0], name=data["edit_car"][1], year=data["edit_car"][2])
+        await scenes.enter(Profile)
+    else:
+        if 1900 <= int(event.text) <= datetime.now(local_tz).year:
+            data = await state.get_data()
+            data["edit_car"].append(event.text)
+            await event.bot.delete_messages(
+                chat_id=event.chat.id,
+                message_ids=[event.message_id - 1,
+                            event.message_id]
+            )
+            await rq.update_car(car_id=data["edit_car"][0], name=data["edit_car"][1], year=data["edit_car"][2])
+
+            await scenes.enter(Profile)
+        else:
+            await event.answer(text="Автомобили с таким годом вымерли или еще не появились. Введите верные данные.")
+
 
 @user_private.message(AddCar.name, F.text.regexp(r'^\w+$'))
 async def add_auto_name(message: types.Message, state: FSMContext):
@@ -290,18 +411,28 @@ async def add_auto_year(message: types.Message, state: FSMContext, scenes: Scene
     else:
         await message.answer(text="Автомобили с таким годом вымерли или еще не появились. Введите верные данные.")
 
-@user_private.message(AddCar.name)
+@user_private.message(or_f(AddCar.name, AddCar.edit_name))
 async def incorrect_auto_name(message: types.Message):
     """
     Обработка некорректного ввода названия автомобиля.
     """
+    await message.bot.delete_messages(
+        chat_id=message.chat.id,
+        message_ids=[message.message_id - 1,
+                    message.message_id]
+    )
     await message.answer(text="Введите название корректное вашего автомобиля.")
 
-@user_private.message(AddCar.year)
+@user_private.message(or_f(AddCar.year, AddCar.edit_year))
 async def incorrect_auto_year(message: types.Message):
     """
     Обработка некорректного ввода года автомобиля.
     """
+    await message.bot.delete_messages(
+        chat_id=message.chat.id,
+        message_ids=[message.message_id - 1,
+                    message.message_id]
+    )
     await message.answer(text="Введите год выпуска вашего автомобиля.")
 
 #=========Profile=========
@@ -1657,7 +1788,7 @@ async def add_reminder_description(message: types.Message, state: FSMContext):
     except:
         pass
     await state.set_state(AddReminders.date_reminder)
-    await message.answer('Введите дату и время выполнения задачи.\nВ формате "2024-11-15 22:15"')
+    await message.answer('Введите дату и время выполнения задачи.\nВ формате "2024-11-15 22:15"\n"Год-месяц-день часы:минуты"')
 
 @user_private.message(
         AddReminders.date_reminder, 
