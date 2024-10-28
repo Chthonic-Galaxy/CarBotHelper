@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-def super_dicts_creator(d):
+def super_dicts_creator(d) -> list[dict]:
     """
     Создает список словарей из входного словаря, расширяя итерируемые значения по их длине.
     """
