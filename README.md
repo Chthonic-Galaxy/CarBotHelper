@@ -23,7 +23,7 @@
 1. Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/ваш_репозиторий/CarBotHelper.git
+git clone https://github.com/Chthonic-Galaxy/CarBotHelper
 ```
 
 2. Перейдите в директорию проекта:
